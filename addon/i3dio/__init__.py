@@ -20,7 +20,7 @@ if "bpy" in locals():
         if __name__ in module:
             del sys.modules[module]
 
-from . import ui
+from . import ui, xml_i3d
 
 import bpy
 
@@ -43,6 +43,33 @@ bl_info = {
 
 
 def register():
+
+    try:
+        import lxml
+        print("lxml is already installed")
+    except ImportError as e:
+        print("lxml was not found")
+        import os
+        import ctypes
+        if ctypes.windll.shell32.IsUserAnAdmin():
+            print("Blender is run as administrator")
+            import subprocess
+            import sys
+            python_exe = bpy.app.binary_path_python
+            result = subprocess.run(['echo', 'yes', '|', python_exe, '-m', 'pip', 'install', '-r',
+                                     f'{os.path.dirname(os.path.realpath(__file__))}\\requirements.txt'],
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, shell=True)
+            try:
+                import lxml
+            except ImportError as e:
+                raise ImportError('lxml is still not installed') from e
+            else:
+                xml_i3d.xml_library = xml_i3d.xml_libraries.LXML
+        else:
+            raise ImportError('You must run blender as administrator to be able to install lxml!') from e
+    else:
+        xml_i3d.xml_library = xml_i3d.xml_libraries.LXML
+
     ui.addon_preferences.register()
     ui.udim_picker.register()
     ui.shader_picker.register()

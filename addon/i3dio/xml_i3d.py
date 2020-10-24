@@ -5,6 +5,15 @@ from typing import (Union, Dict)
 import math
 import logging
 import xml.etree.ElementTree as ET  # Technically not following pep8, but this is the naming suggestion from the module
+from enum import Enum
+
+
+class xml_libraries(Enum):
+    ElemTree = Enum.auto()  # Builtin ElemTree library
+    LXML = Enum.auto()  # External lxml library
+
+
+xml_library = xml_libraries.ElemTree  # Default assignment of builtin library
 
 logger = logging.getLogger(__name__)
 
