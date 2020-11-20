@@ -7,11 +7,14 @@ import logging
 
 # Load in the xml modules
 xml_libraries = {'element_tree'}
+xml_current_library = 'element_tree'
 import xml.etree.ElementTree as ET  # Technically not following pep8, but this is the naming suggestion from the module
+XML_Element = ET.Element
 try:
     from lxml import etree
     xml_libraries.add('lxml')
     print("xml_i3d has access to lxml")
+    XML_Element = Union[ET.Element, etree.Element]
 except ImportError:
     print("xml_i3d does not have access to lxml")
 
@@ -29,27 +32,53 @@ merge_group_prefix = 'MergedMesh_'
 skinned_mesh_prefix = 'SkinnedMesh_'
 
 
-def write_int(element: ET.Element, attribute: str, value: int) -> None:
+def _generic_library_switcher(function: str, *argv, **kwargs):
+    """
+    Very generic way of calling functions that have the same signature between the two libraries
+
+    Args:
+        function:
+        *argv:
+        **kwargs:
+
+    Returns:
+
+    """
+    if xml_current_library == 'lxml':
+        return getattr(etree, function)(*argv, **kwargs)
+    else:
+        return getattr(ET, function)(*argv, **kwargs)
+
+
+def SubElement(*argv, **kwargs):
+    return _generic_library_switcher('SubElement', *argv, **kwargs)
+
+
+def Element(*argv, **kwargs):
+    return _generic_library_switcher('Element', *argv, **kwargs)
+
+
+def write_int(element: XML_Element, attribute: str, value: int) -> None:
     """Write the attribute into the element with formatting for ints"""
     element.set(attribute, f"{value:d}")
 
 
-def write_float(element: ET.Element, attribute: str, value: float) -> None:
+def write_float(element: XML_Element, attribute: str, value: float) -> None:
     """Write the attribute into the element with formatting for floats"""
     element.set(attribute, f"{value:.7f}")
 
 
-def write_bool(element: ET.Element, attribute: str, value: bool) -> None:
+def write_bool(element: XML_Element, attribute: str, value: bool) -> None:
     """Write the attribute into the element with formatting for booleans"""
     element.set(attribute, f"{value!s}".lower())
 
 
-def write_string(element: ET.Element, attribute: str, value: str) -> None:
+def write_string(element: XML_Element, attribute: str, value: str) -> None:
     """Write the attribute into the element with formatting for strings"""
     element.set(attribute, value)
 
 
-def write_attribute(element: ET.Element, attribute: str, value) -> None:
+def write_attribute(element: XML_Element, attribute: str, value) -> None:
     if isinstance(value, float):
         write_float(element, attribute, value)
     elif isinstance(value, bool):  # Order matters, since bool is an int subclass!
@@ -60,7 +89,7 @@ def write_attribute(element: ET.Element, attribute: str, value) -> None:
         write_string(element, attribute, value)
 
 
-def write_property_group(property_group, elements: Dict[str, Union[ET.Element, None]]) -> None:
+def write_property_group(property_group, elements: Dict[str, Union[XML_Element, None]]) -> None:
     logger.info(f"Writing non-default properties from propertygroup: '{type(property_group).__name__}'")
     # Since blender properties are basically abusing the annotation system, we can also abuse this to create
     # a generic property export function by accessing the annotation dictionary
@@ -111,7 +140,7 @@ def write_property_group(property_group, elements: Dict[str, Union[ET.Element, N
     logger.info(f"Wrote '{properties_written}' properties")
 
 
-def add_indentations(element: ET.Element, level: int = 0) -> None:
+def add_indentations(element: XML_Element, level: int = 0) -> None:
     """
     Used for pretty printing the xml since etree does not indent elements and keeps everything in one continues
     string and since i3d files are supposed to be human readable, we need indentation. There is a patch for
