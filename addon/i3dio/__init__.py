@@ -46,7 +46,6 @@ def register():
 
     try:
         import lxml
-        print("lxml is already installed")
     except ImportError as e:
         print("lxml was not found")
         import os
@@ -64,11 +63,14 @@ def register():
             except ImportError as e:
                 raise ImportError('lxml is still not installed') from e
             else:
-                xml_i3d.xml_library = xml_i3d.xml_libraries.LXML
+                print("lxml is now installed")
+                # TODO: See if it is even necessary to import xml_i3d beforehand, maybe reload can be avoided
+                import importlib
+                importlib.reload(xml_i3d)  # We need to reload this library so it now has access to lxml
         else:
-            raise ImportError('You must run blender as administrator to be able to install lxml!') from e
+            print('You must run blender as administrator to be able to install lxml!')
     else:
-        xml_i3d.xml_library = xml_i3d.xml_libraries.LXML
+        print("lxml is already installed")
 
     ui.addon_preferences.register()
     ui.udim_picker.register()
