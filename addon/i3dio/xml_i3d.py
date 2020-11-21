@@ -10,11 +10,13 @@ xml_libraries = {'element_tree'}
 xml_current_library = 'element_tree'
 import xml.etree.ElementTree as ET  # Technically not following pep8, but this is the naming suggestion from the module
 XML_Element = ET.Element
+xml_parsing_exceptions = [ET.ParseError, FileNotFoundError]
 try:
     from lxml import etree
     xml_libraries.add('lxml')
     print("xml_i3d has access to lxml")
     XML_Element = Union[ET.Element, etree.Element]
+    xml_parsing_exceptions.append(etree.ParseError)
 except ImportError:
     print("xml_i3d does not have access to lxml")
 
@@ -48,6 +50,15 @@ def _generic_library_switcher(function: str, *argv, **kwargs):
         return getattr(etree, function)(*argv, **kwargs)
     else:
         return getattr(ET, function)(*argv, **kwargs)
+
+
+def parse(*argv, **kwargs):
+    tree = None
+    try:
+        tree = _generic_library_switcher('parse', *argv, **kwargs)
+    except tuple(xml_parsing_exceptions) as e:
+        print(f"Error while parsing xml file: {e}")
+    return tree
 
 
 def SubElement(*argv, **kwargs):
@@ -87,7 +98,6 @@ def write_attribute(element: XML_Element, attribute: str, value) -> None:
         write_int(element, attribute, value)
     elif isinstance(value, str):
         write_string(element, attribute, value)
-
 
 def write_property_group(property_group, elements: Dict[str, Union[XML_Element, None]]) -> None:
     logger.info(f"Writing non-default properties from propertygroup: '{type(property_group).__name__}'")
