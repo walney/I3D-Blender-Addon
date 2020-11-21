@@ -7,7 +7,7 @@ from .. import xml_i3d
 
 def xml_library_callback(scene, context):
     items = [
-        ('elem_tree', 'ElementTree', 'The standard library which comes with python. It is limited in functionality'
+        ('element_tree', 'ElementTree', 'The standard library which comes with python. It is limited in functionality'
                                      ' and will potentially mess with formatting of your xml files. It is only kept '
                                      'around in case people have no way of installing lxml')
     ]
@@ -18,6 +18,10 @@ def xml_library_callback(scene, context):
                                       'formatting of your files'))
 
     return items
+
+
+def xml_library_changed(self, context):
+    xml_i3d.xml_current_library = self.xml_library
 
 
 class I3D_IO_AddonPreferences(AddonPreferences):
@@ -32,7 +36,8 @@ class I3D_IO_AddonPreferences(AddonPreferences):
     xml_library: EnumProperty(
         name="XML Library",
         description="Which xml library to use for export/import of xml or i3d files",
-        items=xml_library_callback
+        items=xml_library_callback,
+        update=xml_library_changed
     )
 
     def draw(self, context):
