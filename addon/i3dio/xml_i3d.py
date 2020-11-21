@@ -17,8 +17,10 @@ try:
     print("xml_i3d has access to lxml")
     XML_Element = Union[ET.Element, etree.Element]
     xml_parsing_exceptions.append(etree.ParseError)
-except ImportError:
+except ImportError as e:
+    etree = e
     print("xml_i3d does not have access to lxml")
+
 
 print("xml_i3d just got reloaded")
 
@@ -52,10 +54,23 @@ def _generic_library_switcher(function: str, *argv, **kwargs):
         return getattr(ET, function)(*argv, **kwargs)
 
 
+class CommentedTreeBuilder(ET.TreeBuilder):
+    """
+    This class is used to enable elemtree to NOT delete comments of parsed trees...
+    """
+    def comment(self, data):
+        self.start(ET.Comment, {})
+        self.data(data)
+        self.end(ET.Comment)
+
+
 def parse(*argv, **kwargs):
     tree = None
     try:
-        tree = _generic_library_switcher('parse', *argv, **kwargs)
+        if xml_current_library == 'element_tree':
+            tree = ET.parse(*argv, **kwargs, parser=ET.XMLParser(target=CommentedTreeBuilder()))
+        else:
+            tree = etree.parse(*argv, **kwargs)
     except tuple(xml_parsing_exceptions) as e:
         print(f"Error while parsing xml file: {e}")
     return tree
@@ -67,6 +82,28 @@ def SubElement(*argv, **kwargs):
 
 def Element(*argv, **kwargs):
     return _generic_library_switcher('Element', *argv, **kwargs)
+
+
+def ElementTree(*argv, **kwargs):
+    return _generic_library_switcher('ElementTree', *argv, **kwargs)
+
+
+def write_tree_to_file(tree, file_path:str, *argv, **kwargs):
+    if xml_current_library == 'lxml':
+        tree.write(file_path, *argv, pretty_print=True, **kwargs)
+    else:
+        add_indentations(tree.getroot())
+        tree.write(file_path, *argv, **kwargs)
+
+
+def export_to_i3d_file(source: XML_Element, file_path: str, *argv, **kwargs):
+    settings = {
+        'xml_declaration': True,
+        'encoding': 'iso-8859-1',
+        'method': 'xml'
+    }
+
+    write_tree_to_file(ElementTree(source), file_path, *argv, **settings, **kwargs)
 
 
 def write_int(element: XML_Element, attribute: str, value: int) -> None:
@@ -98,6 +135,7 @@ def write_attribute(element: XML_Element, attribute: str, value) -> None:
         write_int(element, attribute, value)
     elif isinstance(value, str):
         write_string(element, attribute, value)
+
 
 def write_property_group(property_group, elements: Dict[str, Union[XML_Element, None]]) -> None:
     logger.info(f"Writing non-default properties from propertygroup: '{type(property_group).__name__}'")
@@ -180,7 +218,7 @@ def add_indentations(element: XML_Element, level: int = 0) -> None:
             element.tail = indents
 
 
-def escape_attrib(text):
+def escape_attrib_element_tree(text):
     # escape attribute value
     try:
         if "&" in text:
@@ -210,12 +248,26 @@ def escape_attrib(text):
     except (TypeError, AttributeError):
         ET._raise_serialization_error(text)
 
+# Assign the escape attribute function to replace the default implementation
+ET._escape_attrib = escape_attrib_element_tree
 
-class CommentedTreeBuilder(ET.TreeBuilder):
-    """
-    This class is used to enable elemtree to NOT delete comments of parsed trees...
-    """
-    def comment(self, data):
-        self.start(ET.Comment, {})
-        self.data(data)
-        self.end(ET.Comment)
+if not isinstance(etree, ImportError):
+    def _escape_attrib_etree(text, encoding):
+        # escape attribute value
+        try:
+            if "&" in text:
+                text = text.replace("&", "&amp;")
+            if "<" in text:
+                text = text.replace("<", "&lt;")
+            if ">" in text:
+                # Needed for the i3d format
+                pass
+                #text = text.replace("\"", "&quot;")
+            if "\n" in text:
+                text = text.replace("\n", "&#10;")
+            return text.encode(encoding, "xmlcharrefreplace")
+        except (TypeError, AttributeError):
+            etree.ElementTree._raise_serialization_error(text)
+
+    etree.ElementTree._escape_attrib = _escape_attrib_etree
+
