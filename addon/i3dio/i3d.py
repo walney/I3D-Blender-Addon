@@ -25,7 +25,7 @@ class I3D:
         }
 
         # Initialize top-level categories
-        self.xml_elements = {'Root': xml_i3d.Element('i3D', {**{'name': name}, **xml_i3d.root_attributes})}
+        self.xml_elements = {'Root': xml_i3d.i3d_root_element(name)}
         self.xml_elements['Asset'] = xml_i3d.SubElement(self.xml_elements['Root'], 'Asset')
         self.xml_elements['Files'] = xml_i3d.SubElement(self.xml_elements['Root'], 'Files')
         self.xml_elements['Materials'] = xml_i3d.SubElement(self.xml_elements['Root'], 'Materials')

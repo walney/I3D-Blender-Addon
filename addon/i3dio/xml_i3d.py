@@ -17,6 +17,7 @@ try:
     print("xml_i3d has access to lxml")
     XML_Element = Union[ET.Element, etree.Element]
     xml_parsing_exceptions.append(etree.ParseError)
+    xml_current_library = 'lxml'
 except ImportError as e:
     etree = e
     print("xml_i3d does not have access to lxml")
@@ -25,10 +26,6 @@ except ImportError as e:
 print("xml_i3d just got reloaded")
 
 logger = logging.getLogger(__name__)
-
-root_attributes = {'version': '1.6',
-                   'xmlns:sxi': 'http://www.w3.org/2001/XMLSchema-instance',
-                   'xsi:noNamespaceSchemaLocation': 'http://i3d.giants.ch/schema/i3d-1.6.xsd'}
 
 file_ending = '.i3d'
 
@@ -67,10 +64,10 @@ class CommentedTreeBuilder(ET.TreeBuilder):
 def parse(*argv, **kwargs):
     tree = None
     try:
-        if xml_current_library == 'element_tree':
-            tree = ET.parse(*argv, **kwargs, parser=ET.XMLParser(target=CommentedTreeBuilder()))
+        if xml_current_library == 'lxml':
+            tree = etree.parse(*argv, **kwargs, parser=etree.XMLParser(remove_blank_text=True))
         else:
-            tree = etree.parse(*argv, **kwargs)
+            tree = ET.parse(*argv, **kwargs, parser=ET.XMLParser(target=CommentedTreeBuilder()))
     except tuple(xml_parsing_exceptions) as e:
         print(f"Error while parsing xml file: {e}")
     return tree
@@ -88,9 +85,13 @@ def ElementTree(*argv, **kwargs):
     return _generic_library_switcher('ElementTree', *argv, **kwargs)
 
 
-def write_tree_to_file(tree, file_path:str, *argv, **kwargs):
+def write_tree_to_file(tree, file_path: str, *argv, **kwargs):
     if xml_current_library == 'lxml':
-        tree.write(file_path, *argv, pretty_print=True, **kwargs)
+        f = open(file_path, 'w')
+        i3d_string = etree.tostring(tree, *argv, pretty_print=True, **kwargs).decode(kwargs['encoding'])
+        i3d_string = i3d_string.replace("&gt;", ">")
+        f.write(i3d_string)
+        f.close()
     else:
         add_indentations(tree.getroot())
         tree.write(file_path, *argv, **kwargs)
@@ -104,6 +105,28 @@ def export_to_i3d_file(source: XML_Element, file_path: str, *argv, **kwargs):
     }
 
     write_tree_to_file(ElementTree(source), file_path, *argv, **settings, **kwargs)
+
+
+def i3d_root_element(name: str):
+
+    root_attributes = {
+        'version': '1.6',
+    }
+
+    namespaced_attributes = {
+        'xsi:noNamespaceSchemaLocation': 'http://i3d.giants.ch/schema/i3d-1.6.xsd',
+        'xmlns:xsi': 'http://www.w3.org/2001/XMLSchema-instance'
+    }
+
+    if xml_current_library == 'lxml':
+        nsmap = {
+            'xsi': 'http://www.w3.org/2001/XMLSchema-instance'
+        }
+        attr_qname = etree.QName("http://www.w3.org/2001/XMLSchema-instance", 'noNamespaceSchemaLocation')
+        return Element('i3D', attrib={'name': name, **root_attributes,
+                                      attr_qname: 'http://i3d.giants.ch/schema/i3d-1.6.xsd'}, nsmap=nsmap)
+    else:
+        return Element('i3D', attrib={'name': name, **root_attributes, **namespaced_attributes})
 
 
 def write_int(element: XML_Element, attribute: str, value: int) -> None:
@@ -248,26 +271,8 @@ def escape_attrib_element_tree(text):
     except (TypeError, AttributeError):
         ET._raise_serialization_error(text)
 
+
 # Assign the escape attribute function to replace the default implementation
 ET._escape_attrib = escape_attrib_element_tree
 
-if not isinstance(etree, ImportError):
-    def _escape_attrib_etree(text, encoding):
-        # escape attribute value
-        try:
-            if "&" in text:
-                text = text.replace("&", "&amp;")
-            if "<" in text:
-                text = text.replace("<", "&lt;")
-            if ">" in text:
-                # Needed for the i3d format
-                pass
-                #text = text.replace("\"", "&quot;")
-            if "\n" in text:
-                text = text.replace("\n", "&#10;")
-            return text.encode(encoding, "xmlcharrefreplace")
-        except (TypeError, AttributeError):
-            etree.ElementTree._raise_serialization_error(text)
-
-    etree.ElementTree._escape_attrib = _escape_attrib_etree
 
